@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import { insertRecord } from '../lib/supabaseHelpers'
 import { AuthResponse } from '../types'
 
 export const useAuth = () => {
@@ -58,9 +59,7 @@ export const useAuth = () => {
       
       // Create profile for new user
       if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
+        const { error: profileError } = await insertRecord('profiles', {
             id: data.user.id,
             xp: 0,
             level: 1,

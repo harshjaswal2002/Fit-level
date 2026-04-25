@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { callRPC, selectRecord } from '../lib/supabaseHelpers'
 import { Reward, Redemption, RewardResponse } from '../types'
 
 export const useRewards = (userId: string | undefined) => {
@@ -65,7 +66,7 @@ export const useRewards = (userId: string | undefined) => {
           throw profileError
         }
 
-        setUserXP(profileData?.xp || 0)
+        setUserXP((profileData as any)?.xp || 0)
 
         // Fetch redemption history
         const { data: historyData, error: historyError } = await supabase
@@ -93,8 +94,8 @@ export const useRewards = (userId: string | undefined) => {
     if (!userId) return { success: false, error: 'User not authenticated' }
 
     try {
-      const { data, error } = await supabase
-        .rpc('redeem_reward', { 
+      const { data, error } = await callRPC(
+        'redeem_reward', { 
           p_user_id: userId, 
           p_reward_id: rewardId 
         })

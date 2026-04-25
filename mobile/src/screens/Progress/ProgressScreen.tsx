@@ -58,18 +58,19 @@ const ProgressScreen = () => {
         setProfile(profileData[0])
       }
 
-      // Fetch weight logs
-      const weightResponse = await fetch(
-        `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/weight_logs?user_id=eq.${session.user.id}&order=date.desc&limit=30`,
-        {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-          }
-        }
-      )
-      const weightData = await weightResponse.json()
-      setWeightLogs(weightData || [])
+      // Fetch weight logs - TEMPORARILY DISABLED TO TEST ERROR SOURCE
+      // const weightResponse = await fetch(
+      //   `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/weight_logs?user_id=eq.${session.user.id}&select=*&order=date.desc&limit=30`,
+      //   {
+      //     headers: {
+      //       'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
+      //       'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
+      //     }
+      //   }
+      // )
+      // const weightData = await weightResponse.json()
+      // setWeightLogs(weightData || [])
+      setWeightLogs([]) // Temporary empty data
 
     } catch (error) {
       console.error('Error fetching progress data:', error)
@@ -104,7 +105,7 @@ const ProgressScreen = () => {
           'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
         },
         body: JSON.stringify({
-          user_id: session.user.id,
+          user_id: session?.user?.id,
           weight: parseFloat(weight),
           date: today
         })

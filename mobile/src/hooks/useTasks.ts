@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { callRPC } from '../lib/supabaseHelpers'
 import { Task, TaskCompletion, TaskResponse } from '../types'
 
 interface TaskWithCompletion extends Task {
@@ -96,8 +97,8 @@ export const useTasks = (userId: string | undefined) => {
     if (!userId) return { success: false, error: 'User not authenticated' }
 
     try {
-      const { data, error } = await supabase
-        .rpc('complete_task', { 
+      const { data, error } = await callRPC(
+        'complete_task', { 
           p_user_id: userId, 
           p_task_id: taskId 
         })
@@ -132,7 +133,7 @@ export const useTasks = (userId: string | undefined) => {
       setTasks(prevTasks => 
         prevTasks.map(task => 
           task.id === taskId 
-            ? { ...task, completed: true, xpEarned: data.xp_earned }
+            ? { ...task, completed: true, xpEarned: (data as any)?.xp_earned }
             : task
         )
       )
