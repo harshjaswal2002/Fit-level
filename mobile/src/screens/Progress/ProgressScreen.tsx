@@ -3,6 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Activi
 import { useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
 import { useAuth } from '../../hooks/useAuth'
+import { supabase } from '../../lib/supabase'
+import { insertRecord } from '../../lib/supabaseHelpers'
 import StatCard from '../../components/StatCard'
 import PhaseCard from '../../components/PhaseCard'
 import { RootStackParamList } from '../../types'
@@ -36,44 +38,94 @@ const ProgressScreen = () => {
 
   useEffect(() => {
     fetchProgressData()
-  }, [])
+  }, [session?.user?.id])
+
+  const ensureProfileExists = async (userId: string): Promise<boolean> => {
+    try {
+      // Check if profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single()
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError
+      }
+
+      // If profile doesn't exist, create it
+      if (!profile) {
+        const { error: insertError } = await insertRecord('profiles', {
+          id: userId,
+          xp: 0,
+          level: 1,
+          streak: 0,
+        })
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError)
+          return false
+        }
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error)
+      return false
+    }
+  }
 
   const fetchProgressData = async () => {
     if (!session?.user?.id) return
 
     try {
-      // Fetch profile
-      const profileResponse = await fetch(
-        `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/profiles?id=eq.${session.user.id}&select=*,phases(*)`,
-        {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-          }
-        }
-      )
-      const profileData = await profileResponse.json()
+      setLoading(true)
       
-      if (profileData.length > 0) {
-        setProfile(profileData[0])
+      // Ensure profile exists before fetching data
+      await ensureProfileExists(session.user.id)
+
+      // Fetch profile with phase information
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select(`
+          *,
+          phases (*)
+        `)
+        .eq('id', session.user.id)
+        .single()
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError
       }
 
-      // Fetch weight logs - TEMPORARILY DISABLED TO TEST ERROR SOURCE
-      // const weightResponse = await fetch(
-      //   `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/weight_logs?user_id=eq.${session.user.id}&select=*&order=date.desc&limit=30`,
-      //   {
-      //     headers: {
-      //       'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-      //       'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-      //     }
-      //   }
-      // )
-      // const weightData = await weightResponse.json()
-      // setWeightLogs(weightData || [])
-      setWeightLogs([]) // Temporary empty data
+      if (profileData) {
+        setProfile(profileData as Profile)
+      }
+
+      // Fetch weight logs
+      const { data: weightData, error: weightError } = await supabase
+        .from('weight_logs')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false })
+        .limit(30)
+
+      if (weightError && weightError.code !== 'PGRST205') {
+        throw weightError
+      }
+
+      setWeightLogs(weightData || [])
 
     } catch (error) {
       console.error('Error fetching progress data:', error)
+      // Set default values to prevent infinite loading
+      setProfile({
+        weight: undefined,
+        target_weight: undefined,
+        streak: 0,
+        phases: undefined
+      })
+      setWeightLogs([])
     } finally {
       setLoading(false)
     }
@@ -93,31 +145,46 @@ const ProgressScreen = () => {
       // Check if weight already logged today
       const existingLog = weightLogs.find(log => log.date === today)
       
-      const url = existingLog 
-        ? `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/weight_logs?id=eq.${existingLog.id}`
-        : 'https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/weight_logs'
-
-      const response = await fetch(url, {
-        method: existingLog ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-        },
-        body: JSON.stringify({
-          user_id: session?.user?.id,
-          weight: parseFloat(weight),
-          date: today
-        })
-      })
-
-      if (response.ok) {
-        Alert.alert('Success', 'Weight logged successfully!')
-        setWeight('')
-        fetchProgressData()
-      } else {
-        throw new Error('Failed to log weight')
+      const weightData = {
+        user_id: session?.user?.id,
+        weight: parseFloat(weight),
+        date: today
       }
+
+      let { data, error } = existingLog
+        ? await (supabase.from('weight_logs').update as any)(weightData)
+            .eq('id', existingLog.id)
+            .select()
+        : await (supabase.from('weight_logs').insert as any)(weightData)
+            .select()
+
+      if (error) {
+        // Handle table not existing error
+        if (error.code === 'PGRST205') {
+          Alert.alert(
+            'Database Setup Required',
+            'Please run schema.sql in your Supabase database to enable weight logging.',
+            [{ text: 'OK' }]
+          )
+          return
+        }
+        
+        // Handle foreign key constraint error
+        if (error.code === '23503') {
+          Alert.alert(
+            'Profile Error',
+            'User profile not found. Please try logging out and back in.',
+            [{ text: 'OK' }]
+          )
+          return
+        }
+        
+        throw error
+      }
+
+      Alert.alert('Success', 'Weight logged successfully!')
+      setWeight('')
+      fetchProgressData()
     } catch (error) {
       Alert.alert('Error', 'Failed to log weight')
       console.error('Weight log error:', error)

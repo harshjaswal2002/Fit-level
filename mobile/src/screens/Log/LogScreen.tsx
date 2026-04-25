@@ -3,11 +3,14 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
 import { useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
 import { useAuth } from '../../hooks/useAuth'
+import { supabase } from '../../lib/supabase'
+import { callRPC, selectRecord, insertRecord } from '../../lib/supabaseHelpers'
 import { RootStackParamList } from '../../types'
 
 type LogScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Log'>
 
 interface DailyLogData {
+  user_id: string
   date: string
   calories?: number
   protein?: number
@@ -29,32 +32,66 @@ const LogScreen = () => {
 
   useEffect(() => {
     fetchTodayLog()
-  }, [])
+  }, [session?.user?.id])
+
+  const ensureProfileExists = async (userId: string): Promise<boolean> => {
+    try {
+      // Check if profile exists
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single()
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        throw profileError
+      }
+
+      // If profile doesn't exist, create it
+      if (!profile) {
+        const { error: insertError } = await insertRecord('profiles', {
+          id: userId,
+          xp: 0,
+          level: 1,
+          streak: 0,
+        })
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError)
+          return false
+        }
+      }
+
+      return true
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error)
+      return false
+    }
+  }
 
   const fetchTodayLog = async () => {
     if (!session?.user?.id) return
 
     try {
-      const response = await fetch(
-        `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/daily_logs?user_id=eq.${session.user.id}&date=eq.${new Date().toISOString().split('T')[0]}`,
-        {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-          }
-        }
-      )
+      const today = new Date().toISOString().split('T')[0]
+      const { data, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('date', today)
+        .single()
 
-      const data = await response.json()
-      
-      if (data.length > 0) {
-        const log = data[0]
-        setExistingLog(log)
-        setCalories(log.calories?.toString() || '')
-        setProtein(log.protein?.toString() || '')
-        setSteps(log.steps?.toString() || '')
-        setWorkoutDone(log.workout_done || false)
-        setNotes(log.notes || '')
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+
+      if (data) {
+        setExistingLog(data)
+        setCalories((data as any).calories?.toString() || '')
+        setProtein((data as any).protein?.toString() || '')
+        setSteps((data as any).steps?.toString() || '')
+        setWorkoutDone((data as any).workout_done || false)
+        setNotes((data as any).notes || '')
       }
     } catch (error) {
       console.error('Error fetching today\'s log:', error)
@@ -75,7 +112,19 @@ const LogScreen = () => {
     setLoading(true)
 
     try {
+      // Ensure profile exists before logging data
+      const profileExists = await ensureProfileExists(session.user.id)
+      if (!profileExists) {
+        Alert.alert(
+          'Profile Error',
+          'Unable to create user profile. Please try logging out and back in.',
+          [{ text: 'OK' }]
+        )
+        return
+      }
+
       const logData: DailyLogData = {
+        user_id: session.user.id,
         date: new Date().toISOString().split('T')[0],
         calories: calories ? parseInt(calories) : undefined,
         protein: protein ? parseInt(protein) : undefined,
@@ -84,57 +133,69 @@ const LogScreen = () => {
         notes: notes || undefined,
       }
 
-      const url = existingLog 
-        ? `https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/daily_logs?id=eq.${existingLog.id}`
-        : 'https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/daily_logs'
+      let { data, error } = existingLog
+        ? await (supabase.from('daily_logs').update as any)(logData)
+            .eq('id', existingLog.id)
+            .select()
+        : await (supabase.from('daily_logs').insert as any)(logData)
+            .select()
 
-      const response = await fetch(url, {
-        method: existingLog ? 'PATCH' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-          'Prefer': existingLog ? 'return=representation' : 'return=representation'
-        },
-        body: JSON.stringify(existingLog ? { ...logData, updated_at: new Date().toISOString() } : logData)
-      })
-
-      if (response.ok) {
-        // Now call log_daily_data function to auto-complete tasks
-        const rpcResponse = await fetch(
-          'https://hssbcoglkvkhuyvurcmm.supabase.co/rest/v1/rpc/log_daily_data',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhzc2Jjb2dsa3ZraHV5dnVyY21tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2OTk3MjQsImV4cCI6MjA5MjI3NTcyNH0.q6B1PgkG6Knp8ce6E0bmNGTVUwgrQNzdmFyNmOZGq_U'
-            },
-            body: JSON.stringify({
-              p_user_id: session.user.id,
-              p_calories: calories ? parseInt(calories) : undefined,
-              p_protein: protein ? parseInt(protein) : undefined,
-              p_steps: steps ? parseInt(steps) : undefined,
-              p_workout_done: workoutDone,
-              p_notes: notes || undefined
-            })
-          }
-        )
-
-        const rpcData = await rpcResponse.json()
-        
-        if (rpcResponse.ok) {
+      if (error) {
+        // Handle table not existing error
+        if (error.code === 'PGRST205') {
           Alert.alert(
-            'Success!',
-            'Daily data logged successfully! Some tasks may have been auto-completed.',
+            'Database Setup Required',
+            'Please run schema.sql and functions.sql in your Supabase database to enable logging functionality.',
             [{ text: 'OK' }]
           )
-        } else {
-          Alert.alert('Success!', 'Daily data logged successfully!')
+          return
         }
-      } else {
-        throw new Error('Failed to log data')
+        
+        // Handle foreign key constraint error
+        if (error.code === '23503') {
+          Alert.alert(
+            'Profile Error',
+            'User profile not found. Please try logging out and back in to create your profile.',
+            [{ text: 'OK' }]
+          )
+          return
+        }
+        
+        throw error
       }
+
+      // Now call log_daily_data function to auto-complete tasks
+      const { data: rpcData, error: rpcError } = await callRPC(
+        'log_daily_data',
+        {
+          p_user_id: session.user.id,
+          p_calories: calories ? parseInt(calories) : undefined,
+          p_protein: protein ? parseInt(protein) : undefined,
+          p_steps: steps ? parseInt(steps) : undefined,
+          p_workout_done: workoutDone,
+          p_notes: notes || undefined
+        }
+      )
+
+      if (rpcError) {
+        // Function might not exist, but log was still saved
+        console.warn('RPC function error:', rpcError)
+        Alert.alert(
+          'Success!',
+          'Daily data logged successfully! (Task auto-completion requires database setup)',
+          [{ text: 'OK' }]
+        )
+      } else {
+        const autoCompleted = (rpcData as any)?.auto_completed_tasks || []
+        const message = autoCompleted.length > 0
+          ? `Daily data logged successfully! ${autoCompleted.length} task(s) auto-completed.`
+          : 'Daily data logged successfully!'
+        
+        Alert.alert('Success!', message, [{ text: 'OK' }])
+      }
+
+      // Refresh the existing log data
+      setExistingLog(data?.[0] || null)
     } catch (error) {
       Alert.alert('Error', 'Failed to log daily data')
       console.error('Log error:', error)
@@ -148,7 +209,7 @@ const LogScreen = () => {
       <View style={styles.content}>
         <Text style={styles.title}>Log Daily Data</Text>
         <Text style={styles.subtitle}>
-          {existingLog ? 'Update today\'s log' : 'Track your progress'}
+          {existingLog ? 'Update today\'s log' : `Track your progress for ${new Date().toLocaleDateString()}`}
         </Text>
 
         <View style={styles.form}>
@@ -232,6 +293,21 @@ const LogScreen = () => {
               </Text>
             )}
           </TouchableOpacity>
+          
+          {existingLog && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => {
+                setCalories('')
+                setProtein('')
+                setSteps('')
+                setWorkoutDone(false)
+                setNotes('')
+              }}
+            >
+              <Text style={styles.clearButtonText}>Clear Form</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.tipsContainer}>
@@ -346,6 +422,20 @@ const styles = StyleSheet.create({
     color: '#888',
     marginBottom: 6,
     lineHeight: 20,
+  },
+  clearButton: {
+    backgroundColor: '#333',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#555',
+  },
+  clearButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#888',
   },
 })
 

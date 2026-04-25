@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dimensions, RefreshControl } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
@@ -11,13 +11,22 @@ import PhaseCard from '../../components/PhaseCard'
 import { RootStackParamList } from '../../types'
 import { LinearGradient } from 'expo-linear-gradient'
 
+interface TodaySummary {
+  calories?: number
+  protein?: number
+  steps?: number
+  workout_done?: boolean
+}
+
 type DashboardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>
 
 const DashboardScreen = () => {
   const navigation = useNavigation<DashboardScreenNavigationProp>()
   const { session } = useAuth()
-  const { data, loading, error, refresh } = useDashboard(session?.user?.id)
+  const { data: dashboardData, loading, error, refresh } = useDashboard(session?.user?.id)
   const [refreshing, setRefreshing] = React.useState(false)
+  const [todaySummary, setTodaySummary] = useState<TodaySummary | null>(null)
+  const [localData, setLocalData] = useState<any>(null) // Local state for immediate updates
   
   const { width } = Dimensions.get('window')
 
@@ -25,9 +34,78 @@ const DashboardScreen = () => {
     navigation.navigate('Log')
   }
 
+  const fetchTodaySummary = async () => {
+    if (!session?.user?.id) return
+
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const { data, error } = await supabase
+        .from('daily_logs')
+        .select('calories, protein, steps, workout_done')
+        .eq('user_id', session.user.id)
+        .eq('date', today)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+
+      setTodaySummary(data as TodaySummary | null)
+    } catch (error) {
+      console.error('Error fetching today summary:', error)
+      setTodaySummary(null)
+    }
+  }
+
+  const fetchProfileData = async () => {
+    if (!session?.user?.id) return
+
+    try {
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('xp, level, streak, weight, target_weight')
+        .eq('id', session.user.id)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        throw error
+      }
+
+      // Update local state with fresh profile data
+      if (profileData) {
+        setLocalData((prev: any) => prev ? {
+          ...prev,
+          profile: {
+            ...prev.profile,
+            xp: (profileData as any).xp || 0,
+            level: (profileData as any).level || 1,
+            streak: (profileData as any).streak || 0,
+            weight: (profileData as any).weight,
+            target_weight: (profileData as any).target_weight
+          }
+        } : {
+          profile: {
+            xp: (profileData as any).xp || 0,
+            level: (profileData as any).level || 1,
+            streak: (profileData as any).streak || 0,
+            weight: (profileData as any).weight,
+            target_weight: (profileData as any).target_weight
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching profile data:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchTodaySummary()
+    fetchProfileData()
+  }, [session?.user?.id])
+
   const handleRefresh = async () => {
     setRefreshing(true)
-    await refresh()
+    await Promise.all([refresh(), fetchTodaySummary(), fetchProfileData()])
     setRefreshing(false)
   }
 
@@ -49,6 +127,9 @@ const DashboardScreen = () => {
     return quotes[Math.floor(Math.random() * quotes.length)]
   }
 
+  // Use local data if available, otherwise use dashboard data
+  const currentData = localData || dashboardData
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -68,7 +149,7 @@ const DashboardScreen = () => {
     )
   }
 
-  if (!data) {
+  if (!currentData) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>No data available</Text>
@@ -112,19 +193,19 @@ const DashboardScreen = () => {
           <View style={styles.xpCard}>
             <View style={styles.xpHeader}>
               <Text style={styles.xpTitle}>Level Progress</Text>
-              <Text style={styles.xpLevel}>Lv. {data.profile?.level || 1}</Text>
+              <Text style={styles.xpLevel}>Lv. {currentData.profile?.level || 1}</Text>
             </View>
             <XPBar 
-              currentXP={data.profile?.xp || 0} 
-              level={data.profile?.level || 1} 
+              currentXP={currentData.profile?.xp || 0} 
+              level={currentData.profile?.level || 1} 
             />
             <View style={styles.xpStats}>
               <View style={styles.xpStat}>
-                <Text style={styles.xpStatValue}>{data.profile?.xp || 0}</Text>
+                <Text style={styles.xpStatValue}>{currentData.profile?.xp || 0}</Text>
                 <Text style={styles.xpStatLabel}>Total XP</Text>
               </View>
               <View style={styles.xpStat}>
-                <Text style={styles.xpStatValue}>{data.profile?.streak || 0}</Text>
+                <Text style={styles.xpStatValue}>{currentData.profile?.streak || 0}</Text>
                 <Text style={styles.xpStatLabel}>Day Streak</Text>
               </View>
             </View>
@@ -134,32 +215,55 @@ const DashboardScreen = () => {
           <View style={styles.quickStatsContainer}>
             <StatCard
               label="Calories"
-              value={data.today_summary?.calories || 0}
+              value={todaySummary?.calories || 0}
               unit="kcal"
               icon="🔥"
             />
             <StatCard
               label="Protein"
-              value={data.today_summary?.protein || 0}
+              value={todaySummary?.protein || 0}
               unit="g"
               icon="🥩"
             />
             <StatCard
               label="Steps"
-              value={data.today_summary?.steps || 0}
+              value={todaySummary?.steps || 0}
               unit=""
-              icon="�"
+              icon="🚶"
             />
+          </View>
+          
+          {/* Today's Status */}
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusTitle}>Today's Status</Text>
+            <View style={styles.statusRow}>
+              <View style={styles.statusItem}>
+                <Text style={styles.statusIcon}>
+                  {todaySummary?.workout_done ? '✅' : '⭕'}
+                </Text>
+                <Text style={styles.statusText}>
+                  {todaySummary?.workout_done ? 'Workout Done' : 'Workout Pending'}
+                </Text>
+              </View>
+              <View style={styles.statusItem}>
+                <Text style={styles.statusIcon}>
+                  {todaySummary ? '📊' : '📝'}
+                </Text>
+                <Text style={styles.statusText}>
+                  {todaySummary ? 'Data Logged' : 'No Data Yet'}
+                </Text>
+              </View>
+            </View>
           </View>
 
           {/* Current Phase */}
-          {data.current_phase && (
+          {currentData.current_phase && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Current Phase</Text>
               <PhaseCard
-                phaseName={data.current_phase.name}
+                phaseName={currentData.current_phase.name}
                 daysCompleted={0}
-                totalDays={data.current_phase.duration_days}
+                totalDays={currentData.current_phase.duration_days}
               />
             </View>
           )}
@@ -206,10 +310,10 @@ const DashboardScreen = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
             <View style={styles.activityCard}>
-              {data.recent_weight_logs && data.recent_weight_logs.length > 0 ? (
+              {currentData.recent_weight_logs && currentData.recent_weight_logs.length > 0 ? (
                 <View>
                   <Text style={styles.activityTitle}>Weight Progress</Text>
-                  {data.recent_weight_logs.slice(0, 3).map((log, index) => (
+                  {currentData.recent_weight_logs.slice(0, 3).map((log: any, index: number) => (
                     <View key={index} style={styles.activityItem}>
                       <View style={styles.activityLeft}>
                         <Text style={styles.activityIcon}>⚖️</Text>
@@ -463,6 +567,38 @@ const styles = StyleSheet.create({
   },
   emptyActivityText: {
     fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
+  },
+  statusContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  statusTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  statusItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statusIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  statusText: {
+    fontSize: 12,
     color: '#888',
     textAlign: 'center',
   },
