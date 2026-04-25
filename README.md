@@ -1,4 +1,4 @@
-# CutQuest - Gamified Fitness Tracking Backend
+# Fit-Level - Gamified Fitness Tracking Backend
 
 A comprehensive backend system for a gamified fitness tracking app that helps users progress through fitness phases while earning XP and rewards.
 
