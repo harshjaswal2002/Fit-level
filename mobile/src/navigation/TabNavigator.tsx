@@ -6,6 +6,7 @@ import TasksScreen from '../screens/Tasks/TasksScreen'
 import LogScreen from '../screens/Log/LogScreen'
 import ProgressScreen from '../screens/Progress/ProgressScreen'
 import RewardsScreen from '../screens/Rewards/RewardsScreen'
+import ProfileScreen from '../screens/ProfileScreen'
 import { TabParamList } from '../types'
 
 const Tab = createBottomTabNavigator<TabParamList>()
@@ -59,6 +60,14 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: 'Rewards',
           tabBarIcon: () => <Text>🎁</Text>,
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: () => <Text>👤</Text>,
         }}
       />
     </Tab.Navigator>

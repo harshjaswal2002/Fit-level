@@ -6,7 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator'
 
 export default function App() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider style={{paddingTop: 45, backgroundColor: '#0f0f0f', paddingBottom: 10}}>
       <NavigationContainer>
         <StatusBar style="light" backgroundColor="#0f0f0f" />
         <AppNavigator />

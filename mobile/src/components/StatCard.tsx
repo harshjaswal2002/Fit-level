@@ -29,7 +29,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#333',
-    minWidth: 120,
+    minWidth: 'auto',
     flex: 1,
   },
   icon: {

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dimensions, RefreshControl } from 'react-native'
+import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dimensions, RefreshControl } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
-import { StackNavigationProp } from '@react-navigation/stack'
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { useDashboard } from '../../hooks/useDashboard'
+import { callRPC } from '../../lib/supabaseHelpers'
 import XPBar from '../../components/XPBar'
 import StatCard from '../../components/StatCard'
 import PhaseCard from '../../components/PhaseCard'
-import { RootStackParamList } from '../../types'
+import { TabParamList } from '../../types'
 import { LinearGradient } from 'expo-linear-gradient'
 
 interface TodaySummary {
@@ -18,7 +19,7 @@ interface TodaySummary {
   workout_done?: boolean
 }
 
-type DashboardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>
+type DashboardScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Dashboard'>
 
 const DashboardScreen = () => {
   const navigation = useNavigation<DashboardScreenNavigationProp>()
@@ -61,36 +62,61 @@ const DashboardScreen = () => {
     if (!session?.user?.id) return
 
     try {
+      // Fetch from user_profile table (same as profile page)
       const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('xp, level, streak, weight, target_weight')
-        .eq('id', session.user.id)
-        .single()
+        .from('user_profile')
+        .select('display_name, username, bio, avatar_url, primary_goal, weekly_workout_days, daily_step_goal, target_weight_kg')
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+
+      const { data: metricsData, error: metricsError } = await supabase
+        .from('user_metrics')
+        .select('weight_kg, height_cm, date_of_birth, gender, body_fat_pct')
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+
+      // Fetch level/XP data from RPC function
+      const { data: dashboardData, error: dashboardError } = await callRPC(
+        'get_user_dashboard', 
+        { p_user_id: session.user.id }
+      )
 
       if (error && error.code !== 'PGRST116') {
         throw error
       }
 
       // Update local state with fresh profile data
-      if (profileData) {
+      if (profileData || metricsData || dashboardData) {
+        const profileInfo = {
+          display_name: (profileData as any)?.display_name || '',
+          username: (profileData as any)?.username || '',
+          bio: (profileData as any)?.bio || '',
+          avatar_url: (profileData as any)?.avatar_url || '',
+          primary_goal: (profileData as any)?.primary_goal || '',
+          weekly_workout_days: (profileData as any)?.weekly_workout_days || 3,
+          daily_step_goal: (profileData as any)?.daily_step_goal || 8000,
+          target_weight_kg: (profileData as any)?.target_weight_kg || (metricsData as any)?.weight_kg,
+          weight_kg: (metricsData as any)?.weight_kg,
+          height_cm: (metricsData as any)?.height_cm,
+          date_of_birth: (metricsData as any)?.date_of_birth,
+          gender: (metricsData as any)?.gender,
+          body_fat_pct: (metricsData as any)?.body_fat_pct,
+          // Add level/XP data from RPC function
+          xp: (dashboardData as any)?.profile?.xp || 0,
+          level: (dashboardData as any)?.profile?.level || 1,
+          streak: (dashboardData as any)?.profile?.streak || 0,
+          weight: (dashboardData as any)?.profile?.weight || (metricsData as any)?.weight_kg,
+          target_weight: (dashboardData as any)?.profile?.target_weight || (profileData as any)?.target_weight_kg
+        }
+
         setLocalData((prev: any) => prev ? {
           ...prev,
           profile: {
             ...prev.profile,
-            xp: (profileData as any).xp || 0,
-            level: (profileData as any).level || 1,
-            streak: (profileData as any).streak || 0,
-            weight: (profileData as any).weight,
-            target_weight: (profileData as any).target_weight
+            ...profileInfo
           }
         } : {
-          profile: {
-            xp: (profileData as any).xp || 0,
-            level: (profileData as any).level || 1,
-            streak: (profileData as any).streak || 0,
-            weight: (profileData as any).weight,
-            target_weight: (profileData as any).target_weight
-          }
+          profile: profileInfo
         })
       }
     } catch (error) {
@@ -101,6 +127,47 @@ const DashboardScreen = () => {
   useEffect(() => {
     fetchTodaySummary()
     fetchProfileData()
+  }, [session?.user?.id])
+
+  // Listen for profile updates from other parts of the app
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      console.log('Profile updated, refreshing dashboard...')
+      fetchProfileData()
+    }
+
+    // Add event listener for profile updates
+    const subscription = supabase
+      .channel('profile_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'user_profile',
+          filter: `user_id=eq.${session?.user?.id}`
+        }, 
+        handleProfileUpdate
+      )
+      .subscribe()
+
+    // Also listen for metrics changes
+    const metricsSubscription = supabase
+      .channel('metrics_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'user_metrics',
+          filter: `user_id=eq.${session?.user?.id}`
+        }, 
+        handleProfileUpdate
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+      metricsSubscription.unsubscribe()
+    }
   }, [session?.user?.id])
 
   const handleRefresh = async () => {
@@ -159,7 +226,7 @@ const DashboardScreen = () => {
 
   return (
     <ScrollView 
-      style={styles.container} 
+      style={styles.container}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#00ff88" />
@@ -178,11 +245,12 @@ const DashboardScreen = () => {
                 <Text style={styles.welcomeText}>Welcome back</Text>
                 <Text style={styles.emailText}>{session?.user?.email?.split('@')[0]}</Text>
               </View>
-              <TouchableOpacity style={styles.profileButton}>
+              <TouchableOpacity 
+                style={styles.profileButton}
+                onPress={() => navigation.navigate('Profile')}
+              >
                 <View style={styles.profileAvatar}>
-                  <Text style={styles.profileInitial}>
-                    {session?.user?.email?.[0]?.toUpperCase()}
-                  </Text>
+                  <Image source={{ uri: currentData.profile?.avatar_url }} style={styles.profileImage} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -246,8 +314,8 @@ const DashboardScreen = () => {
                 </Text>
               </View>
               <View style={styles.statusItem}>
-                <Text style={styles.statusIcon}>
-                  {todaySummary ? '📊' : '📝'}
+                <Text style={styles.statusText}>
+                  {session?.user?.email?.[0]?.toUpperCase()}
                 </Text>
                 <Text style={styles.statusText}>
                   {todaySummary ? 'Data Logged' : 'No Data Yet'}
@@ -425,6 +493,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#00ff88',
   },
+  profileImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
   motivationalText: {
     fontSize: 16,
     color: '#888',
@@ -475,7 +548,7 @@ const styles = StyleSheet.create({
   },
   quickStatsContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     marginBottom: 24,
   },
   section: {

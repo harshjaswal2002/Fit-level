@@ -159,4 +159,5 @@ export type TabParamList = {
   Log: undefined
   Progress: undefined
   Rewards: undefined
+  Profile: undefined
 }

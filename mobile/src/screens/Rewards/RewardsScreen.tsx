@@ -1,5 +1,5 @@
-import React from 'react'
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert } from 'react-native'
+import React, { useState, useEffect } from 'react'
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, Alert, Animated, TouchableOpacity } from 'react-native'
 import { useAuth } from '../../hooks/useAuth'
 import { useRewards } from '../../hooks/useRewards'
 import RewardCard from '../../components/RewardCard'
@@ -7,20 +7,30 @@ import RewardCard from '../../components/RewardCard'
 const RewardsScreen = () => {
   const { session } = useAuth()
   const { rewards, userXP, redemptionHistory, loading, error, redeemReward } = useRewards(session?.user?.id)
+  const [toast, setToast] = useState<{ visible: boolean; message: string }>({
+    visible: false,
+    message: ''
+  })
+
+  const showToast = (message: string) => {
+    console.log('Showing toast:', message)
+    setToast({ visible: true, message })
+    setTimeout(() => {
+      console.log('Hiding toast')
+      setToast({ visible: false, message: '' })
+    }, 3000)
+  }
+
+  // Debug toast state changes
+  useEffect(() => {
+    console.log('Toast state changed:', toast)
+  }, [toast])
 
   const handleRedeemReward = async (rewardId: string) => {
     try {
-      const result = await redeemReward(rewardId)
-      
-      if (result.success) {
-        Alert.alert(
-          'Reward Redeemed!',
-          `You successfully redeemed ${result.data?.reward_name}! ${result.data?.remaining_xp} XP remaining.`,
-          [{ text: 'OK' }]
-        )
-      } else {
-        Alert.alert('Error', result.error || 'Failed to redeem reward')
-      }
+      console.log('Toast triggered for reward:', rewardId)
+      // Show coming soon toast message instead of error
+      showToast('This feature will be available soon!')
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred')
     }
@@ -43,70 +53,79 @@ const RewardsScreen = () => {
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Rewards</Text>
-          <View style={styles.xpContainer}>
-            <Text style={styles.xpLabel}>Your XP</Text>
-            <Text style={styles.xpValue}>{userXP}</Text>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Rewards</Text>
+            <View style={styles.xpContainer}>
+              <Text style={styles.xpLabel}>Your XP</Text>
+              <Text style={styles.xpValue}>{userXP}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* Available Rewards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Available Rewards</Text>
-          {rewards.length === 0 ? (
-            <Text style={styles.noRewardsText}>No rewards available</Text>
-          ) : (
-            rewards.map((reward) => (
-              <RewardCard
-                key={reward.id}
-                reward={reward}
-                userXP={userXP}
-                onRedeem={handleRedeemReward}
-              />
-            ))
-          )}
-        </View>
+          {/* Available Rewards */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Available Rewards</Text>
+            {rewards.length === 0 ? (
+              <Text style={styles.noRewardsText}>No rewards available</Text>
+            ) : (
+              rewards.map((reward) => (
+                <RewardCard
+                  key={reward.id}
+                  reward={reward}
+                  userXP={userXP}
+                  onRedeem={handleRedeemReward}
+                />
+              ))
+            )}
+          </View>
 
-        {/* Redemption History */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Redemption History</Text>
-          {redemptionHistory.length === 0 ? (
-            <Text style={styles.noHistoryText}>No rewards redeemed yet</Text>
-          ) : (
-            <View style={styles.historyContainer}>
-              {redemptionHistory.map((redemption) => (
-                <View key={redemption.id} style={styles.historyItem}>
-                  <View style={styles.historyItemContent}>
-                    <Text style={styles.historyItemName}>
-                      {redemption.rewards?.name || 'Unknown Reward'}
-                    </Text>
-                    <Text style={styles.historyItemDate}>
-                      {new Date(redemption.date).toLocaleDateString()}
+          {/* Redemption History */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Redemption History</Text>
+            {redemptionHistory.length === 0 ? (
+              <Text style={styles.noHistoryText}>No rewards redeemed yet</Text>
+            ) : (
+              <View style={styles.historyContainer}>
+                {redemptionHistory.map((redemption) => (
+                  <View key={redemption.id} style={styles.historyItem}>
+                    <View style={styles.historyItemContent}>
+                      <Text style={styles.historyItemName}>
+                        {redemption.rewards?.name || 'Unknown Reward'}
+                      </Text>
+                      <Text style={styles.historyItemDate}>
+                        {new Date(redemption.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text style={styles.historyItemCost}>
+                      -{redemption.rewards?.xp_cost || 0} XP
                     </Text>
                   </View>
-                  <Text style={styles.historyItemCost}>
-                    -{redemption.rewards?.xp_cost || 0} XP
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+                ))}
+              </View>
+            )}
+          </View>
 
-        {/* XP Tips */}
-        <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>💡 How to Earn XP</Text>
-          <Text style={styles.tipText}>• Complete daily tasks (20-50 XP each)</Text>
-          <Text style={styles.tipText}>• Maintain your streak for bonus XP</Text>
-          <Text style={styles.tipText}>• Log your daily data consistently</Text>
-          <Text style={styles.tipText}>• Progress through fitness phases</Text>
+          {/* XP Tips */}
+          <View style={styles.tipsContainer}>
+            <Text style={styles.tipsTitle}>💡 How to Earn XP</Text>
+            <Text style={styles.tipText}>• Complete daily tasks (20-50 XP each)</Text>
+            <Text style={styles.tipText}>• Maintain your streak for bonus XP</Text>
+            <Text style={styles.tipText}>• Log your daily data consistently</Text>
+            <Text style={styles.tipText}>• Progress through fitness phases</Text>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Toast Message */}
+      {toast.visible && (
+        <View style={styles.toast}>
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </View>
+      )}
+    </View>
   )
 }
 
@@ -114,6 +133,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0f0f0f',
+  },
+  scrollContent: {
+    flex: 1,
   },
   content: {
     padding: 20,
@@ -239,6 +261,31 @@ const styles = StyleSheet.create({
     color: '#888',
     marginBottom: 6,
     lineHeight: 20,
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 50,
+    left: 20,
+    right: 20,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#00ff88',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    elevation: 10,
+    shadowColor: '#00ff88',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  toastText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#00ff88',
+    textAlign: 'center',
   },
 })
 

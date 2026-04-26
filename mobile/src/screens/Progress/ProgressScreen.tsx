@@ -32,9 +32,43 @@ const ProgressScreen = () => {
   const [weight, setWeight] = useState('')
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [dailyLogs, setDailyLogs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submittingWeight, setSubmittingWeight] = useState(false)
   const navigation = useNavigation<ProgressScreenNavigationProp>()
+
+  // Calculate streak based on consecutive daily logs
+  const calculateStreak = (logs: any[]): number => {
+    if (!logs || logs.length === 0) return 0
+    
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Sort logs by date (most recent first)
+    const sortedLogs = logs
+      .map(log => ({ ...log, dateObj: new Date(log.date) }))
+      .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
+    
+    let streak = 0
+    let currentDate = new Date(today)
+    
+    for (const log of sortedLogs) {
+      const logDate = new Date(log.date)
+      logDate.setHours(0, 0, 0, 0)
+      
+      // Check if this log is for the current date we're checking
+      if (logDate.getTime() === currentDate.getTime()) {
+        streak++
+        currentDate.setDate(currentDate.getDate() - 1) // Move to previous day
+      } else if (logDate.getTime() < currentDate.getTime()) {
+        // If the log date is before the current date we're checking, break the streak
+        break
+      }
+      // If log date is after current date (future date), continue checking
+    }
+    
+    return streak
+  }
 
   useEffect(() => {
     fetchProgressData()
@@ -116,6 +150,20 @@ const ProgressScreen = () => {
 
       setWeightLogs(weightData || [])
 
+      // Fetch daily logs for streak calculation
+      const { data: dailyData, error: dailyError } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false })
+        .limit(365) // Get last year of logs for streak calculation
+
+      if (dailyError && dailyError.code !== 'PGRST205') {
+        throw dailyError
+      }
+
+      setDailyLogs(dailyData || [])
+
     } catch (error) {
       console.error('Error fetching progress data:', error)
       // Set default values to prevent infinite loading
@@ -126,6 +174,7 @@ const ProgressScreen = () => {
         phases: undefined
       })
       setWeightLogs([])
+      setDailyLogs([])
     } finally {
       setLoading(false)
     }
@@ -182,6 +231,20 @@ const ProgressScreen = () => {
         throw error
       }
 
+      // Also create/update daily log for streak calculation
+      const dailyLogData = {
+        user_id: session?.user?.id,
+        date: today,
+        weight: parseFloat(weight)
+      }
+
+      const { error: dailyLogError } = await insertRecord('daily_logs', dailyLogData)
+
+      if (dailyLogError) {
+        console.error('Failed to update daily log:', dailyLogError)
+        // Don't show error to user since weight logging succeeded
+      }
+
       Alert.alert('Success', 'Weight logged successfully!')
       setWeight('')
       fetchProgressData()
@@ -212,7 +275,7 @@ const ProgressScreen = () => {
           <View style={styles.statsRow}>
             <StatCard
               label="Current Weight"
-              value={profile?.weight || 0}
+              value={weightLogs.length > 0 ? weightLogs[0].weight : (profile?.weight || 0)}
               unit="kg"
               icon="⚖️"
             />
@@ -224,7 +287,7 @@ const ProgressScreen = () => {
             />
             <StatCard
               label="Streak"
-              value={profile?.streak || 0}
+              value={calculateStreak(dailyLogs)}
               unit="days"
               icon="🔥"
             />
@@ -294,10 +357,10 @@ const ProgressScreen = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Progress Summary</Text>
           <View style={styles.progressContainer}>
-            {profile?.weight && profile?.target_weight && (
+            {weightLogs.length > 0 && profile?.target_weight && (
               <View style={styles.progressItem}>
                 <Text style={styles.progressLabel}>
-                  Weight to Goal: {(profile.weight - profile.target_weight).toFixed(1)} kg
+                  Weight to Goal: {(weightLogs[0].weight - profile.target_weight).toFixed(1)} kg
                 </Text>
                 <View style={styles.progressBar}>
                   <View 
@@ -305,7 +368,7 @@ const ProgressScreen = () => {
                       styles.progressFill,
                       { 
                         width: `${Math.min(100, Math.max(0, 
-                          ((profile.weight - profile.target_weight) / profile.weight) * 100
+                          ((weightLogs[0].weight - profile.target_weight) / weightLogs[0].weight) * 100
                         ))}%` 
                       }
                     ]} 
