@@ -13,14 +13,26 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Fit Level needs access to your health data to track your fitness progress and provide personalized recommendations.",
+        "NSHealthUpdateUsageDescription": "Fit Level needs permission to save workout data and health information to Apple Health.",
+        "NSMotionUsageDescription": "Fit Level uses motion data to track your physical activity and workouts.",
+        "NSContactsUsageDescription": "Fit Level needs access to your contacts to invite friends to join your fitness journey.",
+        "NSContactsUsageDescription": "Fit Level needs access to your contacts to invite friends to join your fitness journey."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.SEND_SMS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

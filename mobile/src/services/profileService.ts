@@ -99,12 +99,20 @@ class ProfileService {
 
       // If insert failed due to duplicate, update instead
       if (insertError.code === '23505') {
+        // Use RPC to update the profile
         const { data: updateResult, error: updateError } = await supabase
-          .from('user_profile')
-          .update(data as any)
-          .eq('user_id', userId)
-          .select()
-          .single()
+          .rpc('update_user_profile', {
+            p_user_id: userId,
+            p_display_name: data.display_name,
+            p_username: data.username,
+            p_bio: data.bio,
+            p_avatar_url: data.avatar_url,
+            p_primary_goal: data.primary_goal,
+            p_weekly_workout_days: data.weekly_workout_days,
+            p_daily_step_goal: data.daily_step_goal,
+            p_target_weight_kg: data.target_weight_kg,
+            p_profile_completion_pct: data.profile_completion_pct
+          } as any)
         
         if (updateError) throw updateError
         return updateResult
@@ -186,14 +194,15 @@ class ProfileService {
 
       // If insert failed due to duplicate, update instead
       if (insertError.code === '23505') {
-        // @ts-ignore - TypeScript issue with Supabase update method
+        // Use RPC to update the integration
         const { data: updateResult, error: updateError } = await supabase
-          .from('user_integrations')
-          .update(data)
-          .eq('user_id', userId)
-          .eq('integration_name', integrationName)
-          .select()
-          .single()
+          .rpc('update_user_integration', {
+            p_user_id: userId,
+            p_integration_name: integrationName,
+            p_connected_at: data.connected_at,
+            p_last_synced_at: data.last_synced_at,
+            p_is_active: data.is_active
+          } as any)
         
         if (updateError) throw updateError
         return updateResult

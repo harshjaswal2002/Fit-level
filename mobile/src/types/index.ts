@@ -146,6 +146,7 @@ export type RootStackParamList = {
   Log: undefined
   Progress: undefined
   Rewards: undefined
+  Profile: undefined
 }
 
 export type AuthStackParamList = {
@@ -156,8 +157,6 @@ export type AuthStackParamList = {
 export type TabParamList = {
   Dashboard: undefined
   Tasks: undefined
-  Log: undefined
   Progress: undefined
   Rewards: undefined
-  Profile: undefined
 }

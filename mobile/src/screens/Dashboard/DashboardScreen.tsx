@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, Image, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Dimensions, RefreshControl } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
+import { StackNavigationProp } from '@react-navigation/stack'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../hooks/useAuth'
 import { useDashboard } from '../../hooks/useDashboard'
@@ -9,7 +9,7 @@ import { callRPC } from '../../lib/supabaseHelpers'
 import XPBar from '../../components/XPBar'
 import StatCard from '../../components/StatCard'
 import PhaseCard from '../../components/PhaseCard'
-import { TabParamList } from '../../types'
+import { RootStackParamList } from '../../types'
 import { LinearGradient } from 'expo-linear-gradient'
 
 interface TodaySummary {
@@ -19,7 +19,7 @@ interface TodaySummary {
   workout_done?: boolean
 }
 
-type DashboardScreenNavigationProp = BottomTabNavigationProp<TabParamList, 'Dashboard'>
+type DashboardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Dashboard'>
 
 const DashboardScreen = () => {
   const navigation = useNavigation<DashboardScreenNavigationProp>()
@@ -33,6 +33,10 @@ const DashboardScreen = () => {
 
   const handleLogDataPress = () => {
     navigation.navigate('Log')
+  }
+
+  const handleProfilePress = () => {
+    navigation.navigate('Profile')
   }
 
   const fetchTodaySummary = async () => {
@@ -276,6 +280,27 @@ const DashboardScreen = () => {
                 <Text style={styles.xpStatValue}>{currentData.profile?.streak || 0}</Text>
                 <Text style={styles.xpStatLabel}>Day Streak</Text>
               </View>
+            </View>
+          </View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActionsContainer}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <View style={styles.quickActionsRow}>
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={handleLogDataPress}
+              >
+                <Text style={styles.quickActionIcon}>📝</Text>
+                <Text style={styles.quickActionText}>Log Data</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.quickActionButton}
+                onPress={handleProfilePress}
+              >
+                <Text style={styles.quickActionIcon}>⚙️</Text>
+                <Text style={styles.quickActionText}>Settings</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -545,6 +570,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#888',
     marginTop: 4,
+  },
+  quickActionsContainer: {
+    marginBottom: 24,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionButton: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  quickActionIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
   },
   quickStatsContainer: {
     flexDirection: 'row',

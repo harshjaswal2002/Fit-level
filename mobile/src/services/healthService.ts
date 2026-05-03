@@ -1,5 +1,5 @@
 import { Platform } from 'react-native'
-import Health, { HealthKitPermissions } from 'react-native-health'
+import Health from 'react-native-health'
 
 export interface HealthData {
   steps: number
@@ -41,33 +41,71 @@ export class HealthService {
         if (!initialized) return false
       }
 
+      // Check if HealthKit library is properly loaded
+      if (!Health) {
+        console.error('HealthKit library not available')
+        return false
+      }
+
+      // Log Health object structure for debugging
+      console.log('Health object structure:', Object.keys(Health))
+      
+      // Try different API patterns
+      let initHealthKit = Health.initHealthKit
+      let Constants = Health.Constants
+
+      // Try accessing through default if direct access fails
+      if (!initHealthKit && (Health as any).default) {
+        console.log('Using Health.default pattern')
+        initHealthKit = (Health as any).default.initHealthKit
+        Constants = (Health as any).default.Constants
+      } else if ((Health as any).default) {
+        console.log('Health.default available but initHealthKit not found, checking structure...')
+        console.log('Health.default keys:', Object.keys((Health as any).default))
+      }
+
+      if (!initHealthKit) {
+        console.error('HealthKit initHealthKit function not found in any pattern')
+        console.log('Available Health methods:', Object.getOwnPropertyNames(Health))
+        if ((Health as any).default) {
+          console.log('Available Health.default methods:', Object.getOwnPropertyNames((Health as any).default))
+        }
+        return false
+      }
+
+      if (!Constants || !Constants.Permissions) {
+        console.error('HealthKit Constants.Permissions not found')
+        return false
+      }
+
       // Request HealthKit permissions
       const permissions = {
         permissions: {
           read: [
-            Health.Constants.Permissions.Steps,
-            Health.Constants.Permissions.DistanceWalkingRunning,
-            Health.Constants.Permissions.ActiveEnergyBurned,
-            Health.Constants.Permissions.HeartRate,
-            Health.Constants.Permissions.RestingHeartRate,
-            Health.Constants.Permissions.BodyMass,
-            Health.Constants.Permissions.Workout,
+            Constants.Permissions.Steps,
+            Constants.Permissions.DistanceWalkingRunning,
+            Constants.Permissions.ActiveEnergyBurned,
+            Constants.Permissions.HeartRate,
+            Constants.Permissions.RestingHeartRate,
+            Constants.Permissions.BodyMass,
+            Constants.Permissions.Workout,
           ],
           write: [
-            Health.Constants.Permissions.Steps,
-            Health.Constants.Permissions.DistanceWalkingRunning,
-            Health.Constants.Permissions.ActiveEnergyBurned,
-            Health.Constants.Permissions.Workout,
+            Constants.Permissions.Steps,
+            Constants.Permissions.DistanceWalkingRunning,
+            Constants.Permissions.ActiveEnergyBurned,
+            Constants.Permissions.Workout,
           ],
         },
       }
 
       return new Promise((resolve) => {
-        Health.initHealthKit(permissions, (error: string, result: any) => {
+        initHealthKit(permissions, (error: string, result: any) => {
           if (error) {
             console.error('HealthKit initialization error:', error)
             resolve(false)
           } else {
+            console.log('HealthKit permissions granted successfully')
             resolve(true)
           }
         })
@@ -121,7 +159,18 @@ export class HealthService {
         limit: 1,
       }
 
-      Health.getDailyStepCountSamples(options, (error: string, result: any) => {
+      let getDailyStepCountSamples = Health.getDailyStepCountSamples
+      if (!getDailyStepCountSamples && (Health as any).default) {
+        getDailyStepCountSamples = (Health as any).default.getDailyStepCountSamples
+      }
+
+      if (!getDailyStepCountSamples) {
+        console.error('getDailyStepCountSamples function not found')
+        resolve(0)
+        return
+      }
+
+      getDailyStepCountSamples(options, (error: string, result: any) => {
         if (error) {
           console.error('Failed to get steps:', error)
           resolve(0)
@@ -141,7 +190,18 @@ export class HealthService {
         limit: 1,
       }
 
-      Health.getDistanceWalkingRunning(options, (error: string, result: any) => {
+      let getDistanceWalkingRunning = Health.getDistanceWalkingRunning
+      if (!getDistanceWalkingRunning && (Health as any).default) {
+        getDistanceWalkingRunning = (Health as any).default.getDistanceWalkingRunning
+      }
+
+      if (!getDistanceWalkingRunning) {
+        console.error('getDistanceWalkingRunning function not found')
+        resolve(0)
+        return
+      }
+
+      getDistanceWalkingRunning(options, (error: string, result: any) => {
         if (error) {
           console.error('Failed to get distance:', error)
           resolve(0)
@@ -161,7 +221,18 @@ export class HealthService {
         limit: 1,
       }
 
-      Health.getActiveEnergyBurned(options, (error: string, result: any) => {
+      let getActiveEnergyBurned = Health.getActiveEnergyBurned
+      if (!getActiveEnergyBurned && (Health as any).default) {
+        getActiveEnergyBurned = (Health as any).default.getActiveEnergyBurned
+      }
+
+      if (!getActiveEnergyBurned) {
+        console.error('getActiveEnergyBurned function not found')
+        resolve(0)
+        return
+      }
+
+      getActiveEnergyBurned(options, (error: string, result: any) => {
         if (error) {
           console.error('Failed to get calories:', error)
           resolve(0)
@@ -181,15 +252,31 @@ export class HealthService {
         limit: 100,
       }
 
+      let getRestingHeartRateSamples = Health.getRestingHeartRateSamples
+      let getHeartRateSamples = Health.getHeartRateSamples
+      
+      if (!getRestingHeartRateSamples && (Health as any).default) {
+        getRestingHeartRateSamples = (Health as any).default.getRestingHeartRateSamples
+      }
+      if (!getHeartRateSamples && (Health as any).default) {
+        getHeartRateSamples = (Health as any).default.getHeartRateSamples
+      }
+
+      if (!getRestingHeartRateSamples || !getHeartRateSamples) {
+        console.error('Heart rate functions not found')
+        resolve(undefined)
+        return
+      }
+
       Promise.all([
         new Promise<any>((innerResolve) => {
-          Health.getRestingHeartRateSamples(options, (error: string, result: any) => {
+          getRestingHeartRateSamples(options, (error: string, result: any) => {
             if (error) innerResolve(null)
             else innerResolve(result)
           })
         }),
         new Promise<any>((innerResolve) => {
-          Health.getHeartRateSamples(options, (error: string, result: any) => {
+          getHeartRateSamples(options, (error: string, result: any) => {
             if (error) innerResolve(null)
             else innerResolve(result)
           })
@@ -224,7 +311,18 @@ export class HealthService {
         limit: 1,
       }
 
-      Health.getLeanBodyMassSamples(options, (error: string, result: any) => {
+      let getLeanBodyMassSamples = Health.getLeanBodyMassSamples
+      if (!getLeanBodyMassSamples && (Health as any).default) {
+        getLeanBodyMassSamples = (Health as any).default.getLeanBodyMassSamples
+      }
+
+      if (!getLeanBodyMassSamples) {
+        console.error('getLeanBodyMassSamples function not found')
+        resolve(undefined)
+        return
+      }
+
+      getLeanBodyMassSamples(options, (error: string, result: any) => {
         if (error) {
           console.error('Failed to get weight:', error)
           resolve(undefined)

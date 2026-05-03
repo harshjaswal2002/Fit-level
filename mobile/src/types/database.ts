@@ -235,6 +235,41 @@ export interface Database {
           created_at?: string
         }
       }
+      user_invites: {
+        Row: {
+          id: string
+          inviter_id: string
+          invitee_phone: string | null
+          invitee_email: string | null
+          invite_url: string
+          status: 'pending' | 'sent' | 'accepted' | 'declined'
+          created_at: string
+          sent_at: string | null
+          accepted_at: string | null
+        }
+        Insert: {
+          id?: string
+          inviter_id: string
+          invitee_phone?: string | null
+          invitee_email?: string | null
+          invite_url: string
+          status?: 'pending' | 'sent' | 'accepted' | 'declined'
+          created_at?: string
+          sent_at?: string | null
+          accepted_at?: string | null
+        }
+        Update: {
+          id?: string
+          inviter_id?: string
+          invitee_phone?: string | null
+          invitee_email?: string | null
+          invite_url?: string
+          status?: 'pending' | 'sent' | 'accepted' | 'declined'
+          created_at?: string
+          sent_at?: string | null
+          accepted_at?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never

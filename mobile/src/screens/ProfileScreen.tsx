@@ -27,6 +27,7 @@ import ConnectedAppsCard from '../components/profile/ConnectedAppsCard'
 import NotificationsCard from '../components/profile/NotificationsCard'
 import SettingsCard from '../components/profile/SettingsCard'
 import AccountCard from '../components/profile/AccountCard'
+import { InviteButton } from '../components/InviteButton'
 
 type ProfileScreenNavigationProp = StackNavigationProp<any>
 
@@ -152,6 +153,12 @@ const ProfileScreen = () => {
             <ProfileHeaderCard 
               profile={profileData?.profile || null}
               onUpdate={handleProfileUpdate}
+            />
+
+            {/* Invite Friends */}
+            <InviteButton 
+              userId={session?.user?.id || ''}
+              userName={profileData?.profile?.display_name || 'Friend'}
             />
 
             {/* Body Metrics */}

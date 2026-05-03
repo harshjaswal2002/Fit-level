@@ -1,12 +1,10 @@
 import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { StyleSheet, Text } from 'react-native'
-import DashboardScreen from '../screens/Dashboard/DashboardScreen'
+import DashboardStack from './DashboardStack'
 import TasksScreen from '../screens/Tasks/TasksScreen'
-import LogScreen from '../screens/Log/LogScreen'
 import ProgressScreen from '../screens/Progress/ProgressScreen'
 import RewardsScreen from '../screens/Rewards/RewardsScreen'
-import ProfileScreen from '../screens/ProfileScreen'
 import { TabParamList } from '../types'
 
 const Tab = createBottomTabNavigator<TabParamList>()
@@ -24,7 +22,7 @@ const TabNavigator = () => {
     >
       <Tab.Screen 
         name="Dashboard" 
-        component={DashboardScreen}
+        component={DashboardStack}
         options={{
           tabBarLabel: 'Home',
           tabBarIcon: () => <Text>🏠</Text>,
@@ -36,14 +34,6 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: 'Tasks',
           tabBarIcon: () => <Text>✅</Text>,
-        }}
-      />
-      <Tab.Screen 
-        name="Log" 
-        component={LogScreen}
-        options={{
-          tabBarLabel: 'Log',
-          tabBarIcon: () => <Text>📝</Text>,
         }}
       />
       <Tab.Screen 
@@ -60,14 +50,6 @@ const TabNavigator = () => {
         options={{
           tabBarLabel: 'Rewards',
           tabBarIcon: () => <Text>🎁</Text>,
-        }}
-      />
-      <Tab.Screen 
-        name="Profile" 
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: () => <Text>👤</Text>,
         }}
       />
     </Tab.Navigator>
