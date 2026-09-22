@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-        "splash": {
+    "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
@@ -19,8 +19,9 @@
         "NSHealthUpdateUsageDescription": "Fit Level needs permission to save workout data and health information to Apple Health.",
         "NSMotionUsageDescription": "Fit Level uses motion data to track your physical activity and workouts.",
         "NSContactsUsageDescription": "Fit Level needs access to your contacts to invite friends to join your fitness journey.",
-        "NSContactsUsageDescription": "Fit Level needs access to your contacts to invite friends to join your fitness journey."
-      }
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.jaswalharsh22.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -36,6 +37,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d69e5484-9f7f-47e1-bcb2-de52eebc3678"
+      }
     }
   }
 }
